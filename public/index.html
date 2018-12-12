@@ -6,8 +6,6 @@
 <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/leaflet/1.2.0/leaflet.css" />
 <script src="//cdnjs.cloudflare.com/ajax/libs/leaflet/1.2.0/leaflet.js"></script>
 <script>
-//. https://shimz.me/blog/leaflet-js/4287
-
 var map = null;
 var imagefile = null;
 
@@ -19,8 +17,6 @@ $(function(){
     input.parent().next( ':text' ).val( label );
     $('#uploadImage').prop( 'disabled', ( label == '' ) );
   });
-
-  //. 船橋市役所を中心とした地図を OpenStreetMap データで表示
 });
 
 function uploadImage(){

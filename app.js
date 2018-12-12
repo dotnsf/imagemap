@@ -56,25 +56,34 @@ app.post( '/image', function( req, res ){
   var imgfilename = req.file.filename;
   var filename = req.file.originalname;
 
-  //. resize
-  var imgpath0 = imgpath + '_0';
-  var option = { src: imgpath, dst: imgpath0, width: 800 };
-  easyimg.resize( option ).then(
-    function( file ){
-      var img0 = fs.readFileSync( imgpath0 );
-      var img064 = new Buffer( img0 ).toString( 'base64' );
+  //. info
+  var info = easyimg.info( imgpath ).then(
+    function( info ){
+      //console.log( info );
+      var width = info.width;
+      var height = info.height;
+      var size = info.size;
+
+      var image_id = uuidv1();
+      var img = fs.readFileSync( imgpath );
+      var img64 = new Buffer( img ).toString( 'base64' );
 
       var params2 = {
+        _id: image_id,
         filename: filename,
+        type: imgtype,
+        width: width,
+        height: height,
+        size: size,
         timestamp: ( new Date() ).getTime(),
         _attachments: {
           image: {
             content_type: imgtype,
-            data: img064
+            data: img64
           }
         }
       };
-      db.insert( params2, function( err2, body2, header2 ){
+      db.insert( params2, image_id, function( err2, body2, header2 ){
         if( err2 ){
           console.log( err2 );
           var p = JSON.stringify( { status: false, error: err2 }, null, 2 );
@@ -82,20 +91,18 @@ app.post( '/image', function( req, res ){
           res.write( p );
           res.end();
         }else{
-          var p = JSON.stringify( { status: true, id: image_id, body: body2 }, null, 2 );
+          var p = JSON.stringify( { status: true, id: image_id, width: width, height: height, body: body2 }, null, 2 );
           res.write( p );
           res.end();
         }
         fs.unlink( imgpath, function( err ){} );
-        fs.unlink( imgpath0, function( err ){} );
       });
     },
     function( err ){
       fs.unlink( imgpath, function( err ){} );
 
-      var p = JSON.stringify( { status: false, error: err }, null, 2 );
       res.status( 400 );
-      res.write( p );
+      res.write( JSON.stringify( { status: false, error: err }, null, 2 ) );
       res.end();
     }
   );
@@ -103,11 +110,20 @@ app.post( '/image', function( req, res ){
 
 app.get( '/image', function( req, res ){
   var image_id = req.query.id;
-  var att = req.query.att ? req.query.att : 'image';
-  db.attachment.get( image_id, att, function( err1, body1 ){
-    res.contentType( 'image/png' );
-    res.end( body1, 'binary' );
+  db.get( image_id, null, function( err1, body1, header1 ){
+    if( err1 ){
+      err1.image_id = "error-2";
+      res.write( JSON.stringify( { status: false, error: err1 } ) );
+      res.end();
+    }else{
+      var type = body1.type;
+      db.attachment.get( image_id, 'image', function( err2, body2 ){
+        res.contentType( type );
+        res.end( body2, 'binary' );
+      });
+    }
   });
+
 });
 
 app.delete( '/image', function( req, res ){
@@ -141,39 +157,31 @@ app.delete( '/image', function( req, res ){
 app.get( '/reset', function( req, res ){
   res.contentType( 'application/json; charset=utf-8' );
 
-  if( db && settings.admin_username && settings.admin_password ){
-    var username = req.query.username;
-    var password = req.query.password;
-    if( username == settings.admin_username && password == settings.admin_password ){
-      cloudant.db.destroy( settings.db_name, function( err, body ){
-        if( err ){
-          db = cloudant.db.use( settings.db_name );
-          res.status( 400 );
-          res.write( JSON.stringify( { status: false, message: "failed to destroy." }, 2, null ) );
-          res.end();
-        }else{
-          cloudant.db.create( settings.db_name, function( err, body ){
-            if( err ){
-              db = null;
-              res.status( 400 );
-              res.write( JSON.stringify( { status: false, message: "failed to recreate." }, 2, null ) );
-              res.end();
-            }else{
-              db = cloudant.db.use( settings.db_name );
-              res.write( JSON.stringify( { status: true, message: body }, 2, null ) );
-              res.end();
-            }
-          });
-        }
-      });
-    }else{
-      res.status( 400 );
-      res.write( JSON.stringify( { status: false, message: "username and/or password not mached." }, 2, null ) );
-      res.end();
-    }
+  if( db ){
+    cloudant.db.destroy( settings.db_name, function( err, body ){
+      if( err ){
+        db = cloudant.db.use( settings.db_name );
+        res.status( 400 );
+        res.write( JSON.stringify( { status: false, message: "failed to destroy." }, 2, null ) );
+        res.end();
+      }else{
+        cloudant.db.create( settings.db_name, function( err, body ){
+          if( err ){
+            db = null;
+            res.status( 400 );
+            res.write( JSON.stringify( { status: false, message: "failed to recreate." }, 2, null ) );
+            res.end();
+          }else{
+            db = cloudant.db.use( settings.db_name );
+            res.write( JSON.stringify( { status: true, message: body }, 2, null ) );
+            res.end();
+          }
+        });
+      }
+    });
   }else{
     res.status( 400 );
-    res.write( JSON.stringify( { status: false, message: "no username and/or password not set on settings.js" }, 2, null ) );
+    res.write( JSON.stringify( { status: false, message: "db not initialized." }, 2, null ) );
     res.end();
   }
 });

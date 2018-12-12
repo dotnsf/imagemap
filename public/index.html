@@ -9,16 +9,57 @@
 //. https://shimz.me/blog/leaflet-js/4287
 
 var map = null;
+var imagefile = null;
 
 $(function(){
-  //. 船橋市役所を中心とした地図を OpenStreetMap データで表示
-  map = L.map('demoMap', { maxZoom: 24, minZoom: 1, crs: L.CRS.Simple }).setView( [ 0, 0 ], 1 );
-  map.setMaxBounds( new L.LatLngBounds( [ 0, 345 ], [ 230, 0 ] ) );
+  $( '#file1' ).on( 'change', function(){
+    var input = $(this);
+    var numFiles = input.get(0).files ? input.get(0).files.length : 1;
+    var label = input.val().replace( /\\/g, '/' ).replace( /.*\//, '' );
+    input.parent().next( ':text' ).val( label );
+    $('#uploadImage').prop( 'disabled', ( label == '' ) );
+  });
 
-  var imageUrl = 'banner.gif';
-  var imageBounds = [ [ 230, 0 ], [ 0, 345 ] ];
-  L.imageOverlay( imageUrl, imageBounds, {} ).addTo( map );
+  //. 船橋市役所を中心とした地図を OpenStreetMap データで表示
 });
+
+function uploadImage(){
+  var form = $('#frm1').get()[0];
+  var data = new FormData( form );
+  $.ajax({
+    type: 'POST',
+    url: '/image',
+    data: data,
+    processData: false,
+    contentType: false,
+    dataType: 'json',
+    success: function( data ){
+      //console.log( data );
+      if( data.status ){
+        var id = data.id;
+        var width = data.width;
+        var height = data.height;
+
+        map = L.map('demoMap', { maxZoom: 24, minZoom: 1, crs: L.CRS.Simple }).setView( [ height, 0 ], 1 );
+        map.setMaxBounds( new L.LatLngBounds( [ 0, 0 ], [ height, width ] ) );
+
+        var imageUrl = '/image?id=' + id;
+        var imageBounds = [ [ 0, 0 ], [ height, width ] ];
+        L.imageOverlay( imageUrl, imageBounds, {} ).addTo( map );
+      }
+
+      $('#fileUpload').css( 'display', 'none' );
+      $('#demoMap').css( 'display', 'block' );
+    },
+    error: function( jqXHR, textStatus, errorThrown ){
+      console.log( 'image: error' );
+      console.log( textStatus );
+      console.log( errorThrown );
+    }
+  });
+
+  return false;
+}
 </script>
 <style>
 html, body  {
@@ -31,9 +72,22 @@ html, body  {
 	width: 100%;
 	height: 100%;
 }
+#fileUpload {
+	width: 100%;
+	height: 100%;
+}
 </style>
 </head>
 <body>
-<div id="demoMap"></div>
+<div id="fileUpload" style="display: block;">
+  <form id="frm1" name="frm1" method="POST" action="/uploadImage" enctype="multipart/form-data">
+    <label>
+      <span class="btn btn-primary">画像ファイル<input type="file" id="file1" name="image" style="display:none;"/></span>
+      <input type="text" style="background:#ccc; width:400px;" readonly=""/>
+    </label>
+  </form>
+  <input id="uploadImage" type="button" class="btn btn-info" value="画像ファイル送信" onClick="uploadImage();" disabled=""/>
+</div>
+<div id="demoMap" style="display: none;"></div>
 </body>
 </html>
